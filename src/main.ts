@@ -51,7 +51,7 @@ async function main() {
     });
 }
 
-const uri = "mongodb+srv://gouthu8400:Pa55word@taskmanagercluster.gag0xxx.mongodb.net/?retryWrites=true&w=majority&appName=TaskManagerCluster";
+const uri = env.DB_URI;
 
 mongoose.connect(uri)
     .then(() => {
