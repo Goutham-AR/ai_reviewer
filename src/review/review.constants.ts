@@ -1,10 +1,6 @@
 import fs from "fs";
 import { env } from "../lib/config";
 
-export const RepoNameIdMap = {
-        "DXP": "",
-        "insights_node_api": "725032b3-6ebe-42c2-ac94-8ffc6bbddeb2",
-};
 
 
 export class ReviewPrompts {
@@ -83,8 +79,13 @@ You are an experienced software developer acting as a Pull Request (PR) reviewer
 
         Please provide all the issues, do not miss anything.
 `
+}
+        public static reReviewSystemInstruction = `
 
-        }
+
+
+`;
+
 
 
 }

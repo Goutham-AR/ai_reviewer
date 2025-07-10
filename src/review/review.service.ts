@@ -29,14 +29,12 @@ export interface ReviewServiceOptions {
     llmBaseURL: string,
     llmApiKey: string,
     llmProviderType: LLMProviderType,
-    repoServiceType: RepoServiceType,
-    localRepoDir: string,
 }
 
 export class ReviewService {
 
     private _llmService: LLMProvider;
-    private _repoService: RepoService;
+    // private _repoService: RepoService;
 
     constructor(opts: ReviewServiceOptions) {
         const { llmProviderType, llmBaseURL: baseURL, llmApiKey: apiKey } = opts;
@@ -48,23 +46,23 @@ export class ReviewService {
             throw new Error("invalid llm provider type");
         }
 
-        const { repoServiceType, localRepoDir } = opts;
-        if (repoServiceType == "local") {
-            this._repoService = new LocalRepoService(localRepoDir);
-        } else {
-            throw new Error("invalid repo service type");
-        }
+        // const { repoServiceType, localRepoDir } = opts;
+        // if (repoServiceType == "local") {
+            // this._repoService = new LocalRepoService(localRepoDir);
+        // } else {
+            // throw new Error("invalid repo service type");
+        // }
     }
 
 
-    public async getReview(opts: GetReviewOptions) {
+    public async getReview(opts: GetReviewOptions, repoService: LocalRepoService) {
         const { baseBranch, targetBranch } = opts;
-        const fileChanges = await this._repoService.getChangedFiles(baseBranch, targetBranch);
+        const fileChanges = await repoService.getChangedFiles(baseBranch, targetBranch);
 
         const result: z.infer<typeof responseSchema>[] = [];
 
         for (const file of fileChanges) {
-            const patch = await this._repoService.diffFile(baseBranch, targetBranch, file);
+            const patch = await repoService.diffFile(baseBranch, targetBranch, file);
             const userInstruction = `
 current state of the file is given below:
 ${fs.readFileSync(`${env.REPO_SERVICE_LOCAL_DIR}/${file}`)}
@@ -91,9 +89,9 @@ ${patch}
         return result;
     }
 
-    public async getReReview(opts: GetReviewOptions, existingComments: any) {
+    public async getReReview(opts: GetReviewOptions, existingComments: any, repoService: LocalRepoService) {
         const { baseBranch, targetBranch } = opts;
-        const fileChanges = await this._repoService.getChangedFiles(baseBranch, targetBranch);
+        const fileChanges = await repoService.getChangedFiles(baseBranch, targetBranch);
 
     }
 

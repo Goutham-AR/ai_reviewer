@@ -22,8 +22,6 @@ async function main() {
         llmProviderType: "ollama",
         llmBaseURL: env.LLM_BASE_URL,
         llmApiKey: env.LLM_API_KEY,
-        repoServiceType: "local",
-        localRepoDir: env.REPO_SERVICE_LOCAL_DIR,
     };
     const service = new ReviewService(opts);
     const reviewController = new ReviewController(azureService, service);

@@ -5,15 +5,16 @@ import { ReviewService, GetReviewOptions } from "./review.service";
 import { validate } from "../utils";
 import { doReviewPayloadSchema } from "./review.validation";
 import { AzureRepoService, CommentDetails } from "../repo/azureRepo";
-import { RepoNameIdMap } from "./review.constants"
+import { RepoNameIdMap, RepoNameLocalDirMap } from "./review.utils"
 
 import { BadRequestError } from "../lib/errors";
 import mongoose from "mongoose";
 import { IPullRequest } from "../pullRequest/pullRequest.model";
 import { ModelNames } from "../lib/db";
 import { IPRComment } from "../prComments/prComment.model";
-import { CommentThreadStatus, GitPullRequestCommentThread } from "azure-devops-node-api/interfaces/GitInterfaces";
+import { Comment, CommentThreadStatus, GitPullRequestCommentThread } from "azure-devops-node-api/interfaces/GitInterfaces";
 import { late } from "zod";
+import { LocalRepoService } from "../repo/localRepo";
 
 export class ReviewController {
     private _azureService: AzureRepoService;
@@ -29,31 +30,39 @@ export class ReviewController {
     }
 
     async doReviewController(req: Request, res: Response, next: NextFunction) {
-        console.log("inside controller");
+        validate(doReviewPayloadSchema, req.body);
+
         const pullRequestModel = mongoose.model<IPullRequest>(ModelNames.PullRequest);
         const commentModel = mongoose.model<IPRComment>(ModelNames.Comment);
 
-        validate(doReviewPayloadSchema, req.body);
-        // Just for testing, need to move the below line.
-        const prId = req.body.prId;
-        const repoId = RepoNameIdMap[req.body.repoName];
+        const repoName = req.body.repoName;
+        const pullRequestId = req.body.prId;
+        const modelName = req.body.modelName;
+
+        const repoId = RepoNameIdMap[repoName];
         if (!repoId) {
             return next(new BadRequestError("invalid repoName"));
         }
-        const doesExist = await pullRequestModel.findOne({ pullRequestId: prId });
+        const localDir = RepoNameLocalDirMap[repoName];
+        if (!localDir) {
+            return next(new BadRequestError("invalid repoName"));
+        }
+        const doesExist = await pullRequestModel.findOne({ pullRequestId });
         if (doesExist) {
             return next(new BadRequestError("PR already reviewed, try re-reviewing it"));
         }
-        const pullRequestDetails = await this._azureService.getPRDetails(repoId, prId);
+
+        const pullRequestDetails = await this._azureService.getPRDetails(repoId, pullRequestId);
         const baseBranch = pullRequestDetails.sourceBranch.split("refs/heads/")[1];
         const targetBranch = pullRequestDetails.targetBranch.split("refs/heads/")[1];
+        const repoService = new LocalRepoService(localDir);
 
         const reviewOpts: GetReviewOptions = {
             baseBranch,
             targetBranch,
-            modelName: req.body.modelName,
+            modelName,
         };
-        const result = await this._reviewService.getReview(reviewOpts);
+        const result = await this._reviewService.getReview(reviewOpts, repoService);
         for (const res of result) {
             for (const r of res) {
                 const comment: CommentDetails = {
@@ -61,12 +70,12 @@ export class ReviewController {
                     filePath: r.filepath,
                     line: r.lineNumber,
                 };
-                const { threadId, commentId } = await this._azureService.addPRComment(repoId, prId, comment);
+                const { threadId, commentId } = await this._azureService.addPRComment(repoId, pullRequestId, comment);
                 await commentModel.insertOne({
                     repoId: repoId,
                     threadId,
                     commentId,
-                    prId,
+                    prId: pullRequestId,
                     filePath: r.filepath,
                     lineNumber: r.lineNumber,
                     issue: r.issue,
@@ -101,16 +110,15 @@ export class ReviewController {
 
         const threads = await this._azureService.getPRReplies(repoId, pullRequestId);
         const aiThreads = threads.filter((elem) => threadIds.includes(elem.id!));
-        const validThreads: GitPullRequestCommentThread[] = [];
+        const pendingComments: Comment[] = [];
         for (const thread of aiThreads) {
             if (thread.comments?.length === 1) {
-                validThreads.push(thread);
+                pendingComments.push(thread.comments[0]);
                 continue;
             }
-            const latestComment = thread.comments?.[thread.comments?.length ?? 1 - 1];
+            const latestComment = thread.comments?.[(thread.comments?.length ?? 1) - 1];
             const threadId = thread.id!;
-            const devFeedback = latestComment?.content?.trim();
-
+            const devFeedback = latestComment?.content;
             if (devFeedback?.startsWith(":falseAlarm")) {
                 const feedback = devFeedback.split(":falseAlarm")[1];
                 const dbComment = await commentModel.findOne({ threadId });
@@ -118,14 +126,37 @@ export class ReviewController {
                     dbComment.devFeedback = {
                         falseAlarm: true,
                         scope: "global",
-                        content: feedback,
+                        content: feedback || "false alarm",
                     }
                     await dbComment.save();
                 }
-                thread.status = CommentThreadStatus.Fixed;
-                await this._azureService.git.updateThread(thread, repoId, pullRequestId, threadId);
+            } else if (devFeedback?.startsWith(":ignore")) {
+                let prefix: string;
+                let scope: string;
+                if (devFeedback.startsWith(":ignore-project")) {
+                    prefix = ":ignore-project";
+                    scope = "project";
+                } else if (devFeedback.startsWith(":ignore-global")) {
+                    prefix = ":ignore-global";
+                    scope = "global";
+                } else {
+                    prefix = devFeedback.split(" ")[0];
+                    scope = "global";
+                }
+
+                const content = devFeedback.split(prefix)[1] || "ignore";
+                const dbComment = await commentModel.findOne({ threadId });
+                if (dbComment) {
+                    dbComment.devFeedback = {
+                        falseAlarm: true,
+                        scope,
+                        content,
+                    }
+                    await dbComment.save();
+                }
             }
         }
+        console.log(pendingComments);
         return res.status(StatusCodes.OK).json({ message: "complete" });
     }
 

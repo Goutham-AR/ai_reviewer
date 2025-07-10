@@ -1,7 +1,7 @@
 import * as azdev from "azure-devops-node-api";
 import { RepoService } from "./repo.interface";
 import { IGitApi } from "azure-devops-node-api/GitApi";
-import { Comment, CommentType, CommentThread } from "azure-devops-node-api/interfaces/GitInterfaces"
+import { Comment, CommentType, CommentThread, CommentThreadStatus } from "azure-devops-node-api/interfaces/GitInterfaces"
 import { env } from "../lib/config";
 import { IPullRequest } from "../pullRequest/pullRequest.model";
 
@@ -46,26 +46,16 @@ export class AzureRepoService extends RepoService {
     }
 
     async addPRComment(repoId: string, prId: number, cmnt: CommentDetails) {
-        // const repoId = "725032b3-6ebe-42c2-ac94-8ffc6bbddeb2"
-        // const prId = 28742;
         const pr = await this.git.getPullRequest(repoId, prId);
-        // console.log(pr);
         const comment: Comment = {
             content: cmnt.content,
             commentType: CommentType.CodeChange,
         };
         const commentThread: CommentThread = {
             comments: [comment],
+            status: CommentThreadStatus.Active,
             threadContext: {
                 filePath: cmnt.filePath,
-                rightFileStart: {
-                    line: cmnt.line || 1,
-                    offset: 4,
-                },
-                rightFileEnd: {
-                    line: cmnt.line + 1,
-                    offset: 2,
-                },
             },
         };
         const newThread = await this.git.createThread(commentThread, repoId, prId);
@@ -73,8 +63,6 @@ export class AzureRepoService extends RepoService {
     }
 
     async getPRReplies(repoId: string, prId: number) {
-        // const repoId = "725032b3-6ebe-42c2-ac94-8ffc6bbddeb2"
-        // const prId = 28742;
         const threads = await this.git.getThreads(repoId, prId);
         return threads;
     }

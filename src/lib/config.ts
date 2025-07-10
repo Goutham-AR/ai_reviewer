@@ -12,6 +12,8 @@ const configSchema = z.object({
     // ZPR server
     ZPR_PORT: z.coerce.number(),
     DB_URI: z.string(),
+    DXP_LOCAL_DIR: z.string(),
+    INSIGHTS_NODE_API_LOCAL_DIR: z.string(),
 });
 
 export type ConfigType = z.infer<typeof configSchema>;
