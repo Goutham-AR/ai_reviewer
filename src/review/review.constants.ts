@@ -3,7 +3,7 @@ import { env } from "../lib/config";
 
 
 
-export class ReviewPrompts {
+export class ReviewPromptsOld {
 	public static systemInstruction = `Act as a code reviewer of a Pull Request, providing feedback on possible bugs and clean code issues.
         You are provided with the Pull Request changes in a patch format and also the current state of the file.
         Each patch entry has the commit message in the Subject line followed by the code changes (diffs) in a unidiff format.

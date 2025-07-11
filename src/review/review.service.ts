@@ -6,7 +6,7 @@ import { LLMProvider } from "../llm/llm.interface";
 import { LLMMessage } from "../llm/llm.types";
 import { OllamaLLMProvider } from "../llm/ollama";
 import { OpenAILLMProvider } from "../llm/openai";
-import { ReviewPrompts } from "./review.constants";
+import { ReviewPrompt } from "./review.prompt";
 import { RepoService } from "../repo/repo.interface";
 import { LocalRepoService } from "../repo/localRepo";
 import { responseSchema } from "./review.validation";
@@ -55,7 +55,7 @@ export class ReviewService {
     }
 
 
-    public async getReview(opts: GetReviewOptions, repoService: LocalRepoService) {
+    public async getReview(repoOverview: string, opts: GetReviewOptions, repoService: LocalRepoService) {
         const { baseBranch, targetBranch } = opts;
         const fileChanges = await repoService.getChangedFiles(baseBranch, targetBranch);
 
@@ -63,17 +63,20 @@ export class ReviewService {
 
         for (const file of fileChanges) {
             const patch = await repoService.diffFile(baseBranch, targetBranch, file);
+            // const fileContent = fs.readFileSync(`${repoService.projectDir}/${file}`)
             const userInstruction = `
 current state of the file is given below:
-${fs.readFileSync(`${env.REPO_SERVICE_LOCAL_DIR}/${file}`)}
 \`\`\`diff
 ${patch}
 \`\`\`
 `;
+
+            const systemPrompt = ReviewPrompt.reviewSystemInstruction(repoOverview);
+
             const messages: LLMMessage[] = [
                 {
                     role: "system",
-                    content: ReviewPrompts.systemInstructionV2,
+                    content: systemPrompt,
                 },
                 {
                     role: "user",

@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import statusCodes, { StatusCodes } from "http-status-codes";
+import fs from "fs";
 
 import { ReviewService, GetReviewOptions } from "./review.service";
 import { validate } from "../utils";
 import { doReviewPayloadSchema } from "./review.validation";
 import { AzureRepoService, CommentDetails } from "../repo/azureRepo";
-import { RepoNameIdMap, RepoNameLocalDirMap } from "./review.utils"
+import { RepoNameIdMap, RepoNameLocalDirMap, RepoNameOverviewContent } from "./review.utils"
 
 import { BadRequestError } from "../lib/errors";
 import mongoose from "mongoose";
@@ -40,21 +41,21 @@ export class ReviewController {
         const modelName = req.body.modelName;
 
         const repoId = RepoNameIdMap[repoName];
-        if (!repoId) {
-            return next(new BadRequestError("invalid repoName"));
-        }
         const localDir = RepoNameLocalDirMap[repoName];
-        if (!localDir) {
+        const projectOverview = RepoNameOverviewContent[repoName];
+        if (!repoId || !localDir || !projectOverview) {
             return next(new BadRequestError("invalid repoName"));
         }
+
         const doesExist = await pullRequestModel.findOne({ pullRequestId });
         if (doesExist) {
             return next(new BadRequestError("PR already reviewed, try re-reviewing it"));
         }
 
+
         const pullRequestDetails = await this._azureService.getPRDetails(repoId, pullRequestId);
-        const baseBranch = pullRequestDetails.sourceBranch.split("refs/heads/")[1];
-        const targetBranch = pullRequestDetails.targetBranch.split("refs/heads/")[1];
+        const targetBranch = pullRequestDetails.sourceBranch.split("refs/heads/")[1];
+        const baseBranch = pullRequestDetails.targetBranch.split("refs/heads/")[1];
         const repoService = new LocalRepoService(localDir);
 
         const reviewOpts: GetReviewOptions = {
@@ -62,7 +63,7 @@ export class ReviewController {
             targetBranch,
             modelName,
         };
-        const result = await this._reviewService.getReview(reviewOpts, repoService);
+        const result = await this._reviewService.getReview(projectOverview, reviewOpts, repoService);
         for (const res of result) {
             for (const r of res) {
                 const comment: CommentDetails = {

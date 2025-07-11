@@ -17,6 +17,10 @@ export class OllamaLLMProvider extends LLMProvider {
             messages,
             stream: false,
             think: false,
+            options: {
+                temperature: 0.2,
+                num_ctx: 32000,
+            }
         });
 
         return { content: response.message.content };
@@ -30,7 +34,8 @@ export class OllamaLLMProvider extends LLMProvider {
             think: false,
             format: schema,
             options: {
-                temperature: 0.2
+                temperature: 0.2,
+                num_ctx: 32000,
             }
         });
 
