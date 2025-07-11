@@ -22,7 +22,7 @@ export class LocalRepoService extends RepoService {
     async diffFile(baseBranch: string, targetBranch: string, fileName: string): Promise<string> {
         // const patch = await this._git.diff([targetBranch, '--', fileName]);
         await this._git.pull("origin", "main", ["--prune"]);
-        const patch = await this._git.diff([`${baseBranch}..${targetBranch}`, "--", fileName, "-U100"])
+        const patch = await this._git.diff([`origin/${baseBranch}..origin/${targetBranch}`, "--", fileName, "-U100"])
         return patch;
     }
 
