@@ -34,7 +34,7 @@ export class LocalRepoService extends RepoService {
 
     async getChangedFiles(baseBranch: string, targetBranch: string): Promise<string[]> {
         await this._git.pull("origin", "main", ["--prune"]);
-        const diffs = await this._git.diff([`${baseBranch}..${targetBranch}`, '--name-only', '--diff-filter=AM']);
+        const diffs = await this._git.diff([`origin/${baseBranch}..origin/${targetBranch}`, '--name-only', '--diff-filter=AM']);
         const files = diffs.split('\n').filter(line => line.trim().length > 0);
         const nonBinaryFiles = files.filter(file => !binaryExtensions.includes(getFileExtension(file)) && !file.includes("package-lock"));
         return nonBinaryFiles;
